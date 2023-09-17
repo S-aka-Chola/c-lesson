@@ -7,6 +7,14 @@ cc cl_getc.c int_parser_getc.c
 
 // add original code here.
 
+//
+// c is buffer used to store the cl_getc().
+// when cl_getc_set_src() is called,
+// c is needed to set to be 0.
+// It (c is set to be 0) means that
+// it is first time to read the target string.
+//
+static int c = 0;
 
 typedef enum{
     NUMBER,
@@ -22,13 +30,6 @@ int is_space(int c){
 }
 
 int parse_one(int *out_val, Token *out_type){
-    //
-    // c is used to store the cl_getc().
-    // as initial value, c is set to be 0.
-    // this means, c is not number nor space.
-    //
-    static int c = 0;
-
     //
     // cl_getc() for the first step.
     // from second attempt, c = NUMBER or SPACE,
@@ -89,6 +90,62 @@ int parse_one(int *out_val, Token *out_type){
     return c;
 }
 
+void test_parse_one_123() {
+    int answer;
+    Token token;
+
+    //
+    // prerequisite for test:
+    //  set input as "123"
+    //  c is also set to be 0 to indicate the cursor refresh.
+    //
+    cl_getc_set_src("123"); c = 0;
+
+    //
+    // parse_one test
+    //
+    parse_one(&answer, &token);
+
+    assert(answer == 123);
+    assert(token == NUMBER);
+
+    return;
+}
+
+void test_parse_one_123_456() {
+    int answer;
+    Token token;
+
+    //
+    // prerequisite for test:
+    //  set input as "123 456"
+    //  c is also set to be 0 to indicate the cursor refresh.
+    //
+    cl_getc_set_src("123 456"); c = 0;
+
+    //
+    // parse_one test
+    //
+    // 1.
+    parse_one(&answer, &token);
+
+    assert(answer == 123);
+    assert(token == NUMBER);
+
+    // 2.
+    parse_one(&answer, &token);
+
+    assert(answer == 0);
+    assert(token == SPACE);
+
+    // 3.
+    parse_one(&answer, &token);
+
+    assert(answer == 456);
+    assert(token == NUMBER);
+
+    return;
+}
 
 
 int main() {
@@ -96,6 +153,19 @@ int main() {
     int answer2 = 0;
 
     // write something here.
+
+    //
+    // test
+    //
+    test_parse_one_123();
+    test_parse_one_123_456();
+
+    //
+    // set input as "123 456"
+    // c is also set to be 0 to indicate the cursor refresh.
+    //
+    cl_getc_set_src("123  456"); c = 0;
+
     Token answer1_type;
     Token answer2_type;
     parse_one(&answer1, &answer1_type);
