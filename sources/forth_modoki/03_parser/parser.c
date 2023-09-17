@@ -43,13 +43,16 @@ int parse_one(int prev_ch, struct Token *out_token) {
     if(prev_ch == EOF) {
         ch = cl_getc();
     }
+    else {
+        ch = prev_ch;
+    }
 
     if (is_numeric(ch)) {
         out_token->ltype = NUMBER;
-        out_token->u.number = ch - 0x30;
+        out_token->u.number = ch - '0'; 
 
         while (ch = cl_getc(), is_numeric(ch)) {
-            out_token->u.number = out_token->u.number * 10 + (ch - 0x30);
+            out_token->u.number = out_token->u.number * 10 + (ch - '0');
         }
     }
     else if (is_space(ch)) {
@@ -65,7 +68,7 @@ int parse_one(int prev_ch, struct Token *out_token) {
     else {
     }
 
-    return EOF;
+    return ch;
 }
 
 
@@ -109,7 +112,34 @@ void parser_print_all() {
 
 
 
+static void test_parse_two_numbers() {
+    char *input = "123   456";
+    int expect1 = 123;
+    int expect2 = ' ';
+    int expect3 = 456;
 
+    struct Token token = {UNKNOWN, {0}};
+    int ch;
+
+    cl_getc_set_src(input);
+
+    // step 1.
+    ch = parse_one(EOF, &token);
+    assert(token.ltype == NUMBER);
+    assert(expect1 == token.u.number);
+
+    // step 2.
+    ch = parse_one(ch, &token);
+    assert(token.ltype == SPACE);
+    assert(expect2 == token.u.onechar);
+
+    // step 3.
+    ch = parse_one(ch, &token);
+    assert(token.ltype == NUMBER);
+    assert(expect3 == token.u.number);
+
+    assert(ch == EOF);
+}
 
 static void test_parse_one_number() {
     char *input = "123";
@@ -145,6 +175,7 @@ static void test_parse_one_empty_should_return_END_OF_FILE() {
 static void unit_tests() {
     test_parse_one_empty_should_return_END_OF_FILE();
     test_parse_one_number();
+    test_parse_two_numbers();
 }
 
 int main() {
