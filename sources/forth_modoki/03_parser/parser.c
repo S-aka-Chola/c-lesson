@@ -112,7 +112,9 @@ int parse_one(int prev_ch, struct Token *out_token) {
             name[i++] = ch;
         }
         name[i] = '\0';
-        out_token->u.name = name;
+        
+        out_token->u.name = (char *)malloc(sizeof(char) * i);
+        strncpy(out_token->u.name, name, NAME_SIZE);
     }
     else if (is_alphabet(ch)) {
         char name[NAME_SIZE];
@@ -125,7 +127,9 @@ int parse_one(int prev_ch, struct Token *out_token) {
             name[i++] = ch;
         }
         name[i] = '\0';
-        out_token->u.name = name;
+
+        out_token->u.name = (char *)malloc(sizeof(char) * i);
+        strncpy(out_token->u.name, name, NAME_SIZE);
     }
     else if (ch == EOF){
         out_token->ltype = END_OF_FILE;
