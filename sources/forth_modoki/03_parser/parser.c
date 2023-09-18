@@ -29,17 +29,42 @@ struct Token {
 #define NAME_SIZE 256
 
 
-int is_numeric(int c){
-    return ( '0' <= c ) && ( c <= '9');
+int is_space(int c) {
+    return (c == ' ');
 }
 
-int is_space(int c){
-    return ( c == ' ');
+int is_eof(int c) {
+    return (c == EOF );
 }
+
+int is_slash(int c) {
+    return (c == '/');
+}
+
+int is_open_curly(int c) {
+    return (c == '{');
+}
+
+int is_close_curly(int c){
+    return (c == '}');
+}
+
+
+int is_numeric(int c) {
+    return ('0' <= c ) && (c <= '9');
+}
+
+int is_alphabet(int c) {
+    return  (('a' <= c) && (c <= 'z')) || (('A' <= c) && (c <= 'Z'));
+}
+
 
 int parse_one(int prev_ch, struct Token *out_token) {
     int ch;
 
+    //
+    // read head, or apply previous read
+    //
     if(prev_ch == EOF) {
         ch = cl_getc();
     }
@@ -47,7 +72,29 @@ int parse_one(int prev_ch, struct Token *out_token) {
         ch = prev_ch;
     }
 
-    if (is_numeric(ch)) {
+    //
+    // read token
+    //
+    
+    if (is_space(ch)) {
+        out_token->ltype = SPACE;
+        out_token->u.onechar = ' ';
+
+        while (ch = cl_getc(), is_space(ch)) {}
+    }
+    else if (is_open_curly(ch)) {
+        out_token->ltype = OPEN_CURLY;
+        out_token->u.onechar = '{';
+
+        ch = cl_getc(); // move cursor;
+    }
+    else if (is_close_curly(ch)) {
+        out_token->ltype = CLOSE_CURLY;
+        out_token->u.onechar = '}';
+
+        ch = cl_getc(); // move cursor;
+    }
+    else if (is_numeric(ch)) {
         out_token->ltype = NUMBER;
         out_token->u.number = ch - '0'; 
 
@@ -55,11 +102,30 @@ int parse_one(int prev_ch, struct Token *out_token) {
             out_token->u.number = out_token->u.number * 10 + (ch - '0');
         }
     }
-    else if (is_space(ch)) {
-        out_token->ltype = SPACE;
-        out_token->u.onechar = ' ';
+    else if (is_slash(ch)) {
+        char name[NAME_SIZE];
+        int i = 0;
 
-        while (ch = cl_getc(), is_space(ch)) {}
+        out_token->ltype = LITERAL_NAME;
+
+        while (ch = cl_getc(), (!is_space(ch) && !is_eof(ch) )) {
+            name[i++] = ch;
+        }
+        name[i] = '\0';
+        out_token->u.name = name;
+    }
+    else if (is_alphabet(ch)) {
+        char name[NAME_SIZE];
+        int i = 0;
+
+        out_token->ltype = EXECUTABLE_NAME;
+        name[i++] = ch;
+
+        while (ch = cl_getc(), (!is_space(ch) && !is_eof(ch) )) {
+            name[i++] = ch;
+        }
+        name[i] = '\0';
+        out_token->u.name = name;
     }
     else if (ch == EOF){
         out_token->ltype = END_OF_FILE;
@@ -110,32 +176,106 @@ void parser_print_all() {
     }while(ch != EOF);
 }
 
+/*              */
+/*  unit tests  */
+/*              */
 
-
-static void test_parse_two_numbers() {
-    char *input = "123   456";
-    int expect1 = 123;
-    int expect2 = ' ';
-    int expect3 = 456;
+static void test_parse_one_executable_name() {
+    char *input = "add";
+    char *expect_name = "add";
+    enum LexicalType expect_type = EXECUTABLE_NAME;
 
     struct Token token = {UNKNOWN, {0}};
     int ch;
 
     cl_getc_set_src(input);
 
-    // step 1.
     ch = parse_one(EOF, &token);
-    assert(token.ltype == NUMBER);
+
+    assert(ch == EOF);
+    assert(expect_type == token.ltype);
+    assert(strcmp(expect_name, token.u.name) == 0);
+}
+
+static void test_parse_one_literal_name() {
+    char *input = "/add";
+    char *expect_name = "add";
+    enum LexicalType expect_type = LITERAL_NAME;
+
+    struct Token token = {UNKNOWN, {0}};
+    int ch;
+
+    cl_getc_set_src(input);
+
+    ch = parse_one(EOF, &token);
+
+    assert(ch == EOF);
+    assert(expect_type == token.ltype);
+    assert(strcmp(expect_name, token.u.name) == 0);
+}
+
+static void test_parse_one_open_curly() {
+    char *input = "{";
+    char expect = '{';
+    enum LexicalType expect_type = OPEN_CURLY;
+
+    struct Token token = {UNKNOWN, {0}};
+    int ch;
+
+    cl_getc_set_src(input);
+
+    ch = parse_one(EOF, &token);
+
+    assert(ch == EOF);
+    assert(expect_type == token.ltype);
+    assert(expect == token.u.onechar);
+}
+
+static void test_parse_one_close_curly() {
+    char *input = "}";
+    char expect = '}';
+    enum LexicalType expect_type = CLOSE_CURLY;
+
+    struct Token token = {UNKNOWN, {0}};
+    int ch;
+
+    cl_getc_set_src(input);
+
+    ch = parse_one(EOF, &token);
+
+    assert(ch == EOF);
+    assert(expect_type == token.ltype);
+    assert(expect == token.u.onechar);
+}
+
+
+static void test_parse_two_numbers() {
+    char *input = "123   456";
+    int expect1 = 123;
+    enum LexicalType expect_type1 = NUMBER;
+    int expect2 = ' ';
+    enum LexicalType expect_type2 = SPACE;
+    int expect3 = 456;
+    enum LexicalType expect_type3 = NUMBER;
+
+    struct Token token = {UNKNOWN, {0}};
+    int ch;
+
+    cl_getc_set_src(input);
+
+    // token 1.
+    ch = parse_one(EOF, &token);
+    assert(expect_type1 == token.ltype);
     assert(expect1 == token.u.number);
 
-    // step 2.
+    // token 2.
     ch = parse_one(ch, &token);
-    assert(token.ltype == SPACE);
+    assert(expect_type2 == token.ltype);
     assert(expect2 == token.u.onechar);
 
-    // step 3.
+    // token 3.
     ch = parse_one(ch, &token);
-    assert(token.ltype == NUMBER);
+    assert(expect_type3 == token.ltype);
     assert(expect3 == token.u.number);
 
     assert(ch == EOF);
@@ -144,6 +284,7 @@ static void test_parse_two_numbers() {
 static void test_parse_one_number() {
     char *input = "123";
     int expect = 123;
+    enum LexicalType expect_type = NUMBER;
 
     struct Token token = {UNKNOWN, {0}};
     int ch;
@@ -153,7 +294,7 @@ static void test_parse_one_number() {
     ch = parse_one(EOF, &token);
 
     assert(ch == EOF);
-    assert(token.ltype == NUMBER);
+    assert(expect_type == token.ltype);
     assert(expect == token.u.number);
 }
 
@@ -171,11 +312,31 @@ static void test_parse_one_empty_should_return_END_OF_FILE() {
     assert(token.ltype == expect);
 }
 
+static void check_parse_one_parser_print_all(char* str) {
+    printf("----------------INPUT-----------------\n");
+    printf("%s\n", str);
+    printf("--------------------------------------\n");
+
+    cl_getc_set_src(str);
+
+    printf("----------------OUTPUT----------------\n");
+    parser_print_all();
+    printf("--------------------------------------\n");
+}
 
 static void unit_tests() {
+    // unit tests
     test_parse_one_empty_should_return_END_OF_FILE();
     test_parse_one_number();
     test_parse_two_numbers();
+    test_parse_one_executable_name();
+    test_parse_one_literal_name();
+    test_parse_one_open_curly();
+    test_parse_one_close_curly();
+    printf("UNIT TESTS : OK\n\n");
+    
+    // check for sample inputs
+    check_parse_one_parser_print_all("123 45 add /some { 2 3 add } def");
 }
 
 int main() {
